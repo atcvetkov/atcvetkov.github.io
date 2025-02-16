@@ -1,77 +1,47 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Cushion BLE</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
-        button { font-size: 18px; padding: 10px; margin: 10px; }
-        #status { font-weight: bold; color: green; }
-    </style>
-</head>
-<body>
-    <h1>Smart Cushion BLE</h1>
-    <button onclick="connectToBLE()">Connect to SmartCushion</button>
-    <p id="status">Not connected</p>
-    
-    <h2>Sit Time: <span id="sitTime">0</span> sec</h2>
-    <h2>Stand Time: <span id="standTime">0</span> sec</h2>
+const SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"; // Smart Cushion Service
+const SIT_TIME_UUID = "12345678-1234-5678-1234-56789abcdef1";
+const STAND_TIME_UUID = "12345678-1234-5678-1234-56789abcdef2";
 
-    <script>
-        let device;
-        let server;
-        let service;
-        let sitTimeCharacteristic;
-        let standTimeCharacteristic;
+async function connectToBLE() {
+    try {
+        console.log("Requesting Bluetooth Device...");
+        let device = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: [SERVICE_UUID]  // Теперь правильный сервис
+        });
 
-        // const SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0";
-        const SERVICE_UUID = "0000180a-0000-1000-8000-00805f9b34fb"; // Device Information Service
-        const SIT_TIME_UUID = "12345678-1234-5678-1234-56789abcdef1";
-        const STAND_TIME_UUID = "12345678-1234-5678-1234-56789abcdef2";
+        console.log("Connecting to GATT Server...");
+        let server = await device.gatt.connect();
 
-        async function connectToBLE() {
-            try {
-                console.log("Requesting Bluetooth Device...");
-                device = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: [SERVICE_UUID]
-                });
+        console.log("Getting Smart Cushion Service...");
+        let service = await server.getPrimaryService(SERVICE_UUID);
 
-                console.log("Connecting to GATT Server...");
-                server = await device.gatt.connect();
+        console.log("Getting Characteristics...");
+        let sitTimeCharacteristic = await service.getCharacteristic(SIT_TIME_UUID);
+        let standTimeCharacteristic = await service.getCharacteristic(STAND_TIME_UUID);
 
-                console.log("Getting Smart Cushion Service...");
-                service = await server.getPrimaryService(SERVICE_UUID);
+        document.getElementById("status").innerText = "Connected ✅";
 
-                console.log("Getting Characteristics...");
-                sitTimeCharacteristic = await service.getCharacteristic(SIT_TIME_UUID);
-                standTimeCharacteristic = await service.getCharacteristic(STAND_TIME_UUID);
+        // Подписываемся на обновления
+        sitTimeCharacteristic.addEventListener("characteristicvaluechanged", handleSitTime);
+        standTimeCharacteristic.addEventListener("characteristicvaluechanged", handleStandTime);
 
-                document.getElementById("status").innerText = "Connected ✅";
+        await sitTimeCharacteristic.startNotifications();
+        await standTimeCharacteristic.startNotifications();
 
-                sitTimeCharacteristic.addEventListener("characteristicvaluechanged", handleSitTime);
-                standTimeCharacteristic.addEventListener("characteristicvaluechanged", handleStandTime);
+        console.log("Listening for SitTime and StandTime updates...");
+    } catch (error) {
+        console.log("Error: ", error);
+        document.getElementById("status").innerText = "Failed to connect ❌";
+    }
+}
 
-                await sitTimeCharacteristic.startNotifications();
-                await standTimeCharacteristic.startNotifications();
+function handleSitTime(event) {
+    let value = new DataView(event.target.value.buffer).getUint32(0, true);
+    document.getElementById("sitTime").innerText = value;
+}
 
-                console.log("Listening for SitTime and StandTime updates...");
-            } catch (error) {
-                console.log("Error: ", error);
-                document.getElementById("status").innerText = "Failed to connect ❌";
-            }
-        }
-
-        function handleSitTime(event) {
-            let value = new DataView(event.target.value.buffer).getUint32(0, true);
-            document.getElementById("sitTime").innerText = value;
-        }
-
-        function handleStandTime(event) {
-            let value = new DataView(event.target.value.buffer).getUint32(0, true);
-            document.getElementById("standTime").innerText = value;
-        }
-    </script>
-</body>
-</html>
+function handleStandTime(event) {
+    let value = new DataView(event.target.value.buffer).getUint32(0, true);
+    document.getElementById("standTime").innerText = value;
+}
